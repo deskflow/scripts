@@ -8,3 +8,4 @@
     b"\x00\x01\x00\x08SYNERGY\x00",
     b"\x00\x01\x00\x08DESKFLOW\x00",
     b"\x00\x01\x00\x08" + b"A" * 100 + b"\x00", # Long client name
+    

@@ -73,3 +73,4 @@ def create_ssl_socket(host, port, timeout=5.0):
     ssl_sock = context.wrap_socket(sock, server_hostname=host)
     ssl_sock.settimeout(timeout)
     return ssl_sock
+    

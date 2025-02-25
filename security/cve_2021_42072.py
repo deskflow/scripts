@@ -87,3 +87,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     scan(args.host, args.port)
+    
