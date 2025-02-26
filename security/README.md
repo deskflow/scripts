@@ -39,7 +39,7 @@ Additional options:
 
 ```bash
 # Test for CVE-2021-42072 (Authentication Bypass)
-python cve_2021_42072.py <target_ip>
+python cve_2021_42072.py --host <target_ip>
 
 # Test for CVE-2021-42073 (Memory Corruption)
 python cve_2021_42073.py <target_ip>
