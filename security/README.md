@@ -19,7 +19,7 @@ These scripts are designed to test Deskflow for various security vulnerabilities
 #### Main Vulnerability Scanner
 
 ```bash
-python deskflow_vulnerability_scanner.py --host <target_ip>
+python deskflow_vulnerability_scanner.py <target_ip>
 ```
 
 Additional options:
