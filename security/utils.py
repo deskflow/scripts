@@ -39,7 +39,12 @@ def frame_message(payload, is_initial=False):
         return b"".join(chunks)
 
 def normalize_host(host):
-    """Remove tls:// prefix if present"""
+    """Remove tls:// prefix if present.
+    
+    This function ensures compatibility with host formats used in Nuclei templates.
+    While these Python scripts are used to verify Nuclei template results,
+    they need to handle the same host format that Nuclei templates use (tls://).
+    """
     if host.startswith('tls://'):
         return host[6:]
     return host

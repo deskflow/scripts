@@ -19,37 +19,47 @@ These scripts are designed to test Deskflow for various security vulnerabilities
 #### Main Vulnerability Scanner
 
 ```bash
-python deskflow_vulnerability_scanner.py <target_ip>
+# Test local instance (default)
+python deskflow_vulnerability_scanner.py
+
+# Test remote instance
+python deskflow_vulnerability_scanner.py --host <target_ip> [--use-ssl] [--port <port>]
 ```
 
-Additional options:
-- `--port <port>` - Specify a custom port (default: 24800)
-- `--ssl` - Use SSL for the connection
-- `--all` - Run all available scans
-- `--session` - Run session vulnerability scan
-- `--memory` - Run memory vulnerability scan
-- `--descriptor` - Run descriptor vulnerability scan
-- `--connection` - Run connection vulnerability scan
-- `--client-verify` - Run client verification scan
-- `--tls` - Run TLS vulnerability checks
-- `--mitm` - Test for MITM vulnerabilities
-- `--timing` - Check for timing attacks
+Common options:
+- `--host`: Target hostname or IP (default: localhost)
+- `--use-ssl`: Enable SSL/TLS for connections (required for testing TLS-specific vulnerabilities)
+- `--port`: Specify custom port (default: 24800)
 
-#### CVE-Specific Scanners
+All scripts support `--help` to show their full usage information.
+
+**⚠️ Warning**: Running all vulnerability tests together via the main scanner (deskflow_vulnerability_scanner.py) can cause severe issues that may require client reinstallation. For safer testing, use the individual test scripts below. (Descriptor exhaustion will definitely break it still. Be careful out there!)
+
+#### Individual Test Scripts
+
+For safer and more targeted testing, use these individual scripts:
 
 ```bash
+# Test for session vulnerabilities (local instance)
+python deskflow_session_scan.py
+
+# Test for session vulnerabilities (remote instance)
+python deskflow_session_scan.py --host <target_ip> [--port <port>]
+
 # Test for CVE-2021-42072 (Authentication Bypass)
-python cve_2021_42072.py --host <target_ip>
+python cve_2021_42072.py --host <target_ip> [--port <port>]
 
 # Test for CVE-2021-42073 (Memory Corruption)
-python cve_2021_42073.py <target_ip>
+python cve_2021_42073.py --host <target_ip> [--port <port>]
 
 # Test for CVE-2021-42075 (Descriptor Exhaustion)
-python cve_2021_42075.py <target_ip>
+python cve_2021_42075.py --host <target_ip> [--port <port>]
 
 # Test for CVE-2021-42076 (Connection Flooding)
-python cve_2021_42076.py <target_ip>
+python cve_2021_42076.py --host <target_ip> [--port <port>]
 ```
+
+These individual scripts are verification tools that complement the Nuclei templates (which are the primary security testing tools). They are designed to be run one at a time to prevent client corruption. All scripts use port 24800 by default and support `--help` for detailed usage information. When testing a local Deskflow instance, the `--host` parameter can be omitted to use localhost by default.
 
 ## Nuclei Templates
 

