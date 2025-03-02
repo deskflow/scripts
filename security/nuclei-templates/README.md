@@ -41,3 +41,22 @@ nuclei -t ./deskflow-session-scan.yaml -target 192.168.1.100:24800
 
 - These templates are designed to test for known vulnerabilities in Deskflow
 - Some tests may cause instability in the target application (Specially Connection flooding)
+
+## TLS Configuration
+
+Some templates, like `deskflow-client-verify-scan.yaml`, use the `tls://` prefix in the host section:
+
+```yaml
+host:
+  - "tls://{{Hostname}}"
+```
+
+This is necessary because:
+
+1. **Protocol Specification**: The `tls://` prefix explicitly tells Nuclei to use TLS for the connection instead of plaintext TCP.
+2. **Windows Service Compatibility**: On Windows, Deskflow runs as a raw TCP service that requires explicit TLS configuration.
+3. **Verification Scripts**: Our Python verification scripts (in `scripts/security/utils.py`) handle this prefix through the `normalize_host()` function which strips the prefix before establishing the connection.
+
+Without the `tls://` prefix, Nuclei will attempt to connect using plaintext TCP, which won't work with Deskflow's secure TLS setup.
+
+For more information, see [Nuclei documentation on network protocols](https://docs.projectdiscovery.io/templates/protocols/network).
