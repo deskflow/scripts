@@ -4,7 +4,7 @@ version = "0.0.1"
 description = "Scripts to assist with development of Deskflow"
 requires-python = ">=3.9"
 dependencies = [
-  "clang-format",
+  "clang-format==20.1.0",
   "python-dotenv",
   "colorama",
 ]
