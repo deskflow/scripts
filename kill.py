@@ -81,7 +81,7 @@ def kill(raw_name, keep_newest):
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             return False
 
-    return True
+    return len(to_kill) > 0
 
 
 def kill_all(names, keep_newest=False):
