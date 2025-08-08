@@ -49,8 +49,16 @@ def get_kill_lists(name, matches, keep_newest):
     return to_kill
 
 
-def kill(raw_name, keep_newest):
+def get_process_name(raw_name):
     name = raw_name.lower()
+    if sys.platform == "win32" and not name.endswith(".exe"):
+        return f"{name}.exe"
+
+    return name
+
+
+def kill(raw_name, keep_newest):
+    name = get_process_name(raw_name)
     matches = []
     for proc in psutil.process_iter(attrs=["pid", "name", "create_time"]):
         try:
