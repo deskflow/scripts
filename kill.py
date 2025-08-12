@@ -49,7 +49,7 @@ def main():
             if args.watch:
                 time.sleep(1)
     except KeyboardInterrupt:
-        print("Exiting...")
+        print("\nExiting...")
         sys.exit(0)
 
 
