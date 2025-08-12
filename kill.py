@@ -15,6 +15,7 @@
 import argparse
 import psutil
 import sys
+import time
 
 
 def main():
@@ -27,11 +28,32 @@ def main():
         action="store_true",
         help="Keep the newest instance of the process (default: kill all)",
     )
+    parser.add_argument(
+        "--watch",
+        action="store_true",
+        help="Watches and keeps looking for processes to kill"
+    )
+    parser.add_argument(
+        "--verbose",
+        action="store_true",
+        help="Enable verbose logging output"
+    )
     args = parser.parse_args()
-    kill_all(args.names, args.keep_newest)
+    try:
+        if args.watch:
+            print("Watching for processes to kill. Press Ctrl+C to exit.")
+
+        while args.watch:
+            kill_all(args.names, args.keep_newest, args.verbose)
+
+            if args.watch:
+                time.sleep(1)
+    except KeyboardInterrupt:
+        print("Exiting...")
+        sys.exit(0)
 
 
-def get_kill_lists(name, matches, keep_newest):
+def get_kill_lists(name, matches, keep_newest, verbose_logs):
     if not keep_newest:
         print(f"Killing all {name} processes ({len(matches)} found)")
         return matches
@@ -40,11 +62,13 @@ def get_kill_lists(name, matches, keep_newest):
     matches.sort(key=lambda p: p.info.get("create_time", 0), reverse=True)
     to_keep = matches[0]
     if len(matches) == 1:
-        print(f"Keeping only {name} (PID {to_keep.pid}), nothing to kill")
+        if verbose_logs:
+            print(f"Keeping only {name} (PID {to_keep.pid}), nothing to kill")
         return []
 
     to_kill = matches[1:]
-    print(f"Keeping newest {name} (PID {to_keep.pid}), killing {len(to_kill)}")
+    if verbose_logs:
+        print(f"Keeping newest {name} (PID {to_keep.pid}), killing {len(to_kill)}")
 
     return to_kill
 
@@ -57,7 +81,7 @@ def get_process_name(raw_name):
     return name
 
 
-def kill(raw_name, keep_newest):
+def kill(raw_name, keep_newest, verbose_logs):
     name = get_process_name(raw_name)
     matches = []
     for proc in psutil.process_iter(attrs=["pid", "name", "create_time"]):
@@ -69,14 +93,15 @@ def kill(raw_name, keep_newest):
             return False
 
     if not matches:
-        print(f"No processes found for '{raw_name}'")
+        if verbose_logs:
+            print(f"No processes found for '{raw_name}'")
         return False
 
-    to_kill = get_kill_lists(name, matches, keep_newest)
+    to_kill = get_kill_lists(name, matches, keep_newest, verbose_logs)
 
     for proc in to_kill:
         try:
-            print(f"Terminating PID {proc.pid}")
+            print(f"Terminating PID {proc.pid} ({proc.info['name']})")
             proc.terminate()
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             return False
@@ -84,7 +109,7 @@ def kill(raw_name, keep_newest):
     _, alive = psutil.wait_procs(to_kill, timeout=2)
     for proc in alive:
         try:
-            print(f"Force killing PID {proc.pid}")
+            print(f"Force killing PID {proc.pid} ({proc.info['name']})")
             proc.kill()
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             return False
@@ -92,12 +117,16 @@ def kill(raw_name, keep_newest):
     return len(to_kill) > 0
 
 
-def kill_all(names, keep_newest=False):
+def kill_all(names, keep_newest, verbose_logs):
     killed = 0
     for name in names:
-        killed += 1 if kill(name, keep_newest) else 0
+        killed += 1 if kill(name, keep_newest, verbose_logs) else 0
 
-    print(f"Processes killed: {killed}")
+    if killed == 0:
+        if verbose_logs:
+            print("No processes killed")
+    else:
+        print(f"Processes killed: {killed}")
 
 
 if __name__ == "__main__":
