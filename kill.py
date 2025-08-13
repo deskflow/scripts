@@ -2,7 +2,7 @@
 
 # Deskflow -- mouse and keyboard sharing utility
 # SPDX-License-Identifier: GPL-2.0-only WITH LicenseRef-OpenSSL-Exception
-# Copyright (C) 2025 Symless Ltd.
+# SPDX-FileCopyrightText: 2025 Symless Ltd.
 
 # A utility to kill processes by name. Using Python avoids writing platform-specific shell scripts.
 #
@@ -31,12 +31,10 @@ def main():
     parser.add_argument(
         "--watch",
         action="store_true",
-        help="Watches and keeps looking for processes to kill"
+        help="Watches and keeps looking for processes to kill",
     )
     parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Enable verbose logging output"
+        "--verbose", action="store_true", help="Enable verbose logging output"
     )
     args = parser.parse_args()
     try:
