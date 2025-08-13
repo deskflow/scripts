@@ -18,6 +18,9 @@ import sys
 import time
 
 
+def log(message):
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {message}")
+
 def main():
     parser = argparse.ArgumentParser(
         description="A cross-platform kill utility tuned for Deskflow development."
@@ -39,7 +42,7 @@ def main():
     args = parser.parse_args()
     try:
         if args.watch:
-            print("Watching for processes to kill. Press Ctrl+C to exit.")
+            log("Watching for processes to kill. Press Ctrl+C to exit.")
 
         while args.watch:
             kill_all(args.names, args.keep_newest, args.verbose)
@@ -47,13 +50,13 @@ def main():
             if args.watch:
                 time.sleep(1)
     except KeyboardInterrupt:
-        print("\nExiting...")
+        log("\nExiting...")
         sys.exit(0)
 
 
 def get_kill_lists(name, matches, keep_newest, verbose_logs):
     if not keep_newest:
-        print(f"Killing all {name} processes ({len(matches)} found)")
+        log(f"Killing all {name} processes ({len(matches)} found)")
         return matches
 
     # Sort newest first, keep the first, kill the rest
@@ -61,12 +64,12 @@ def get_kill_lists(name, matches, keep_newest, verbose_logs):
     to_keep = matches[0]
     if len(matches) == 1:
         if verbose_logs:
-            print(f"Keeping only {name} (PID {to_keep.pid}), nothing to kill")
+            log(f"Keeping only {name} (PID {to_keep.pid}), nothing to kill")
         return []
 
     to_kill = matches[1:]
     if verbose_logs:
-        print(f"Keeping newest {name} (PID {to_keep.pid}), killing {len(to_kill)}")
+        log(f"Keeping newest {name} (PID {to_keep.pid}), killing {len(to_kill)}")
 
     return to_kill
 
@@ -87,19 +90,19 @@ def kill(raw_name, keep_newest, verbose_logs):
             if name == proc.info["name"].lower():
                 matches.append(proc)
         except (psutil.NoSuchProcess, psutil.AccessDenied):
-            print(f"Process {proc.pid} no longer exists or access denied")
+            log(f"Process {proc.pid} no longer exists or access denied")
             return False
 
     if not matches:
         if verbose_logs:
-            print(f"No processes found for '{raw_name}'")
+            log(f"No processes found for '{raw_name}'")
         return False
 
     to_kill = get_kill_lists(name, matches, keep_newest, verbose_logs)
 
     for proc in to_kill:
         try:
-            print(f"Terminating PID {proc.pid} ({proc.info['name']})")
+            log(f"Terminating PID {proc.pid} ({proc.info['name']})")
             proc.terminate()
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             return False
@@ -107,7 +110,7 @@ def kill(raw_name, keep_newest, verbose_logs):
     _, alive = psutil.wait_procs(to_kill, timeout=2)
     for proc in alive:
         try:
-            print(f"Force killing PID {proc.pid} ({proc.info['name']})")
+            log(f"Force killing PID {proc.pid} ({proc.info['name']})")
             proc.kill()
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             return False
@@ -122,9 +125,9 @@ def kill_all(names, keep_newest, verbose_logs):
 
     if killed == 0:
         if verbose_logs:
-            print("No processes killed")
+            log("No processes killed")
     else:
-        print(f"Processes killed: {killed}")
+        log(f"Processes killed: {killed}")
 
 
 if __name__ == "__main__":
