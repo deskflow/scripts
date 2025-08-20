@@ -19,24 +19,19 @@ import time
 import enum
 
 
-class KillMode(enum.Enum):
-    KEEP_NEWEST = "keep-newest"
-    KILL_ORPHANS = "kill-orphans"
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="A cross-platform kill utility tuned for Deskflow development."
     )
     parser.add_argument(
-        "mode",
-        type=killmode_type,
-        choices=list(KillMode),
-        help=(
-            "Kill mode:\n"
-            "  keep-newest: Keep the newest instance of matching processes.\n"
-            "  kill-orphans: Kill orphaned processes (e.g. Core that has no GUI)."
-        ),
+        "--orphans",
+        action="store_true",
+        help="Kill orphaned processes (e.g. Core that has no GUI)."
+    )
+    parser.add_argument(
+        "--keep-newest",
+        action="store_true",
+        help="Keep only the newest instance of matching processes."
     )
     parser.add_argument(
         "--names", nargs="+", required=True, help="Process names to kill"
@@ -52,7 +47,7 @@ def main():
     args = parser.parse_args()
 
     if args.verbose:
-        log(f"Starting kill utility with mode: {args.mode.value}")
+        log(f"Starting with options: orphans={args.orphans}, keep-newest={args.keep_newest}")
         log(f"Processes to kill: {', '.join(args.names)}")
 
     if args.watch:
@@ -62,7 +57,7 @@ def main():
         while args.watch:
             killed = 0
             for name in args.names:
-                killed += 1 if kill(name, args.mode, args.verbose) else 0
+                killed += 1 if kill(name, args.orphans, args.keep_newest, args.verbose) else 0
 
             if killed == 0:
                 if args.verbose:
@@ -80,18 +75,11 @@ def main():
 def log(message):
     print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {message}")
 
-
-def killmode_type(value):
-    try:
-        return KillMode(value)
-    except ValueError:
-        raise argparse.ArgumentTypeError(f"Invalid mode: {value}")
-
-
-def get_kill_lists(name, matches, mode, verbose):
+def get_kill_lists(name, matches, orphans, keep_newest, verbose):
+    to_kill = []
 
     # Sort newest first, keep the first, kill the rest
-    if mode == KillMode.KEEP_NEWEST:
+    if keep_newest:
         if verbose:
             log("Looking for processes, keeping newest instances")
 
@@ -100,41 +88,33 @@ def get_kill_lists(name, matches, mode, verbose):
         if len(matches) == 1:
             if verbose:
                 log(f"Keeping only {name} (PID {to_keep.pid}), nothing to kill")
-            return []
-
-        to_kill = matches[1:]
-        if verbose:
-            log(f"Keeping newest {name} (PID {to_keep.pid}), killing {len(to_kill)}")
+        else:
+            to_kill = matches[1:]
+            if verbose:
+                log(f"Keeping newest {name} (PID {to_keep.pid}), killing {len(to_kill)}")
+    else:
+        to_kill = matches.copy()
 
     # Kill processes that have no parent or are orphaned
-    elif mode == KillMode.KILL_ORPHANS:
+    if orphans:
         if verbose:
             log("Looking for orphaned processes to kill")
 
-        to_kill = []
         for proc in matches:
             if verbose:
+                parent_name = proc.parent().name() if proc.parent() else 'No parent'
                 log(f"Checking process {proc.pid} ({proc.info['name']})")
-                log(
-                    f"Parent PID: {proc.ppid()} ({proc.parent().name() if proc.parent() else 'No parent'})"
-                )
+                log(f"Parent PID: {proc.ppid()} ({parent_name})")
 
             try:
                 # When the GUI is killed but the Core stays alive, it becomes owned by systemd.
+                # Gotcha: On macOS this doesn't work, since PIDs are reused by app bundles.
                 parent_systemd = proc.parent() and proc.parent().name() == "systemd"
                 if parent_systemd or proc.ppid() == 0:
                     to_kill.append(proc)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 log(f"Process {proc.pid} no longer exists or access denied")
                 continue
-
-        if not to_kill:
-            if verbose:
-                log(f"No orphaned processes found for '{name}'")
-            return []
-
-    else:
-        raise ValueError(f"Unknown kill mode: {mode}")
 
     return to_kill
 
@@ -147,7 +127,7 @@ def get_process_name(raw_name):
     return name
 
 
-def kill(raw_name, mode, verbose):
+def kill(raw_name, orphans, keep_newest, verbose):
     name = get_process_name(raw_name)
     matches = []
     for proc in psutil.process_iter(attrs=["pid", "name", "create_time"]):
@@ -163,7 +143,7 @@ def kill(raw_name, mode, verbose):
             log(f"No processes found for '{raw_name}'")
         return False
 
-    to_kill = get_kill_lists(name, matches, mode, verbose)
+    to_kill = get_kill_lists(name, matches, orphans, keep_newest, verbose)
 
     for proc in to_kill:
         try:
