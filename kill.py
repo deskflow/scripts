@@ -16,20 +16,30 @@ import argparse
 import psutil
 import sys
 import time
+import enum
 
 
-def log(message):
-    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {message}")
+class KillMode(enum.Enum):
+    KEEP_NEWEST = "keep-newest"
+    KILL_ORPHANS = "kill-orphans"
+
 
 def main():
     parser = argparse.ArgumentParser(
         description="A cross-platform kill utility tuned for Deskflow development."
     )
-    parser.add_argument("names", nargs="+", help="Process names to target")
     parser.add_argument(
-        "--keep-newest",
-        action="store_true",
-        help="Keep the newest instance of the process (default: kill all)",
+        "mode",
+        type=killmode_type,
+        choices=list(KillMode),
+        help=(
+            "Kill mode:\n"
+            "  keep-newest: Keep the newest instance of matching processes.\n"
+            "  kill-orphans: Kill orphaned processes (e.g. Core that has no GUI)."
+        ),
+    )
+    parser.add_argument(
+        "--names", nargs="+", required=True, help="Process names to kill"
     )
     parser.add_argument(
         "--watch",
@@ -40,12 +50,25 @@ def main():
         "--verbose", action="store_true", help="Enable verbose logging output"
     )
     args = parser.parse_args()
-    try:
-        if args.watch:
-            log("Watching for processes to kill. Press Ctrl+C to exit.")
 
+    if args.verbose:
+        log(f"Starting kill utility with mode: {args.mode.value}")
+        log(f"Processes to kill: {', '.join(args.names)}")
+
+    if args.watch:
+        log("Watching for processes to kill. Press Ctrl+C to exit.")
+
+    try:
         while args.watch:
-            kill_all(args.names, args.keep_newest, args.verbose)
+            killed = 0
+            for name in args.names:
+                killed += 1 if kill(name, args.mode, args.verbose) else 0
+
+            if killed == 0:
+                if args.verbose:
+                    log("No processes killed")
+            else:
+                log(f"Processes killed: {killed}")
 
             if args.watch:
                 time.sleep(1)
@@ -54,22 +77,64 @@ def main():
         sys.exit(0)
 
 
-def get_kill_lists(name, matches, keep_newest, verbose_logs):
-    if not keep_newest:
-        log(f"Killing all {name} processes ({len(matches)} found)")
-        return matches
+def log(message):
+    print(f"[{time.strftime('%Y-%m-%d %H:%M:%S')}] {message}")
+
+
+def killmode_type(value):
+    try:
+        return KillMode(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"Invalid mode: {value}")
+
+
+def get_kill_lists(name, matches, mode, verbose):
 
     # Sort newest first, keep the first, kill the rest
-    matches.sort(key=lambda p: p.info.get("create_time", 0), reverse=True)
-    to_keep = matches[0]
-    if len(matches) == 1:
-        if verbose_logs:
-            log(f"Keeping only {name} (PID {to_keep.pid}), nothing to kill")
-        return []
+    if mode == KillMode.KEEP_NEWEST:
+        if verbose:
+            log("Looking for processes, keeping newest instances")
 
-    to_kill = matches[1:]
-    if verbose_logs:
-        log(f"Keeping newest {name} (PID {to_keep.pid}), killing {len(to_kill)}")
+        matches.sort(key=lambda p: p.info.get("create_time", 0), reverse=True)
+        to_keep = matches[0]
+        if len(matches) == 1:
+            if verbose:
+                log(f"Keeping only {name} (PID {to_keep.pid}), nothing to kill")
+            return []
+
+        to_kill = matches[1:]
+        if verbose:
+            log(f"Keeping newest {name} (PID {to_keep.pid}), killing {len(to_kill)}")
+
+    # Kill processes that have no parent or are orphaned
+    elif mode == KillMode.KILL_ORPHANS:
+        if verbose:
+            log("Looking for orphaned processes to kill")
+
+        to_kill = []
+        for proc in matches:
+            if verbose:
+                log(f"Checking process {proc.pid} ({proc.info['name']})")
+                log(
+                    f"Parent PID: {proc.ppid()} ({proc.parent().name() if proc.parent() else 'No parent'})"
+                )
+
+            try:
+                # When the GUI is killed but the Core stays alive, it becomes owned by systemd.
+                parent_systemd = proc.parent() and proc.parent().name() == "systemd"
+                if parent_systemd or proc.ppid() == 0:
+                    to_kill.append(proc)
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                log(f"Process {proc.pid} no longer exists or access denied")
+                continue
+
+        if not to_kill:
+            if verbose:
+                log(f"No orphaned processes found for '{name}'")
+            return []
+
+    else:
+        raise ValueError(f"Unknown kill mode: {mode}")
 
     return to_kill
 
@@ -82,7 +147,7 @@ def get_process_name(raw_name):
     return name
 
 
-def kill(raw_name, keep_newest, verbose_logs):
+def kill(raw_name, mode, verbose):
     name = get_process_name(raw_name)
     matches = []
     for proc in psutil.process_iter(attrs=["pid", "name", "create_time"]):
@@ -94,11 +159,11 @@ def kill(raw_name, keep_newest, verbose_logs):
             return False
 
     if not matches:
-        if verbose_logs:
+        if verbose:
             log(f"No processes found for '{raw_name}'")
         return False
 
-    to_kill = get_kill_lists(name, matches, keep_newest, verbose_logs)
+    to_kill = get_kill_lists(name, matches, mode, verbose)
 
     for proc in to_kill:
         try:
@@ -116,18 +181,6 @@ def kill(raw_name, keep_newest, verbose_logs):
             return False
 
     return len(to_kill) > 0
-
-
-def kill_all(names, keep_newest, verbose_logs):
-    killed = 0
-    for name in names:
-        killed += 1 if kill(name, keep_newest, verbose_logs) else 0
-
-    if killed == 0:
-        if verbose_logs:
-            log("No processes killed")
-    else:
-        log(f"Processes killed: {killed}")
 
 
 if __name__ == "__main__":
