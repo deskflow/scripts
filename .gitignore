@@ -1,3 +1,7 @@
 *.egg-info
 __pycache__
 .DS_Store
+
+# nested security repos (see README)
+/security
+/security-embargo
