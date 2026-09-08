@@ -6,6 +6,21 @@ To use, clone this repo into your `deskflow` repo.
 These scripts are meant only to add developer conveniences during daily development.
 They are not used by CI and are not required at all for Deskflow development.
 
+## Security PoCs
+
+Proof-of-concept scripts for Deskflow vulnerabilities are **not** in this repo.
+
+| Advisory state | Repo |
+| --- | --- |
+| Published and fixed | [deskflow/security](https://github.com/deskflow/security) (public) |
+| Unpublished or embargoed | `deskflow/security-embargo` (private) |
+
+Do not open a pull request here to add a PoC, and do not open one against the
+public repo for a vulnerability that has not been published yet. An open PR on a
+public repo discloses its full diff. If you are reporting a new vulnerability,
+use [private vulnerability reporting](https://github.com/deskflow/deskflow/security/advisories/new)
+on the main repo and attach the PoC to the advisory thread.
+
 ## References
 
 The [`.vscode`](https://github.com/deskflow/.vscode) project references scripts in this project.
